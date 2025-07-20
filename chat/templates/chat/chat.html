@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Role-Based Chatroom</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 0;
+        }
+
+        .chat-container {
+            width: 80%;
+            max-width: 900px;
+            margin: 50px auto;
+            background: #ffffff;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: #007bff;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+
+        .message {
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            max-width: 70%;
+            clear: both;
+        }
+
+        .message.user {
+            background: #d1ecf1;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.other {
+            background: #f8d7da;
+            margin-right: auto;
+            text-align: left;
+        }
+
+        .message .meta {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .chat-form {
+            padding: 15px 20px;
+            background: #eeeeee;
+            display: flex;
+        }
+
+        .chat-form input[type="text"] {
+            flex: 1;
+            padding: 10px 15px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            margin-right: 10px;
+        }
+
+        .chat-form button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .chat-form button:hover {
+            background: #0056b3;
+        }
+
+        .no-role-msg {
+            text-align: center;
+            padding: 10px;
+            background: #fff3cd;
+            color: #856404;
+            font-size: 14px;
+            border-top: 1px solid #ffeeba;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            🗨️ Role-Based Chatroom
+        </div>
+
+        <div class="chat-messages">
+            {% for message in messages %}
+                <div class="message {% if message.sender == user %}user{% else %}other{% endif %}">
+                    <div class="meta">
+                        {{ message.sender.username }} ({{ message.timestamp|date:"M d, H:i" }})
+                    </div>
+                    <div class="content">
+                        {{ message.content }}
+                    </div>
+                </div>
+            {% empty %}
+                <p>No messages yet.</p>
+            {% endfor %}
+        </div>
+
+        <form class="chat-form" method="post">
+            {% csrf_token %}
+            {{ form.content }}
+            <button type="submit">Send</button>
+        </form>
+
+        {% if not user_has_role %}
+            <div class="no-role-msg">
+                Chats are strictly Role based and only users with a role can participate.
+            </div>
+        {% endif %}
+    </div>
+</body>
+
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const textarea = document.querySelector("textarea");
+    const mentionBox = document.createElement("ul");
+    mentionBox.id = "mention-box";
+    mentionBox.style.position = "absolute";
+    mentionBox.style.border = "1px solid #ccc";
+    mentionBox.style.background = "#fff";
+    mentionBox.style.display = "none";
+    mentionBox.style.zIndex = "1000";
+    document.body.appendChild(mentionBox);
+
+    let currentUsers = [];
+
+    textarea.addEventListener("keyup", async function (e) {
+        const value = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const lastAt = value.lastIndexOf("@", cursorPos - 1);
+
+        if (lastAt !== -1 && (lastAt === 0 || /\s/.test(value[lastAt - 1]))) {
+            const partial = value.substring(lastAt + 1, cursorPos);
+
+            // fetch mentionable users
+            const res = await fetch("/mentionable-users/");
+            const data = await res.json();
+
+            currentUsers = data.filter(u =>
+                u.username.toLowerCase().startsWith(partial.toLowerCase())
+            );
+
+            if (currentUsers.length === 0) {
+                mentionBox.style.display = "none";
+                return;
+            }
+
+            mentionBox.innerHTML = "";
+            currentUsers.forEach(user => {
+                const li = document.createElement("li");
+                li.textContent = user.username;
+                li.style.padding = "5px";
+                li.style.cursor = "pointer";
+                li.addEventListener("click", () => {
+                    const before = value.substring(0, lastAt);
+                    const after = value.substring(cursorPos);
+                    textarea.value = before + "@" + user.username + " " + after;
+                    textarea.focus();
+                    mentionBox.style.display = "none";
+                });
+                mentionBox.appendChild(li);
+            });
+
+            const rect = textarea.getBoundingClientRect();
+            mentionBox.style.top = `${rect.bottom + window.scrollY}px`;
+            mentionBox.style.left = `${rect.left + window.scrollX}px`;
+            mentionBox.style.display = "block";
+        } else {
+            mentionBox.style.display = "none";
+        }
+    });
+
+    document.addEventListener("click", () => {
+        mentionBox.style.display = "none";
+    });
+});
+</script>
+
+</html>
+
